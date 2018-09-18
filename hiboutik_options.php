@@ -166,7 +166,7 @@ add_action('admin_menu', function() {
   </div>
 
   <h2>Manually synchronize stock with Hiboutik</h2>
-  <a class="button button-primary" href="http://chaussett.es/hiboutik-woocommerce-sync-stock/">Go!</a>
+  <a class="button button-primary" href="/hiboutik-woocommerce-sync-stock/">Go!</a>
   <?php
   }, 'data:image/svg+xml;base64,'.base64_encode(file_get_contents(__DIR__.'/hibou-plain-white.svg')), 58);
 });
