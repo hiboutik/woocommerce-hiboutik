@@ -20,3 +20,13 @@ Then follow the guide :
 [EN] http://www.pos-software-free.com/sync-woocommerce-hiboutik/
 
 
+## Credits
+
+Many have contributed to this plugin effort, from direct contributions of code, to contributions of projects.
+
+Contributors
+* [Murel Ntyandi](http://www.murelh.info), _(contact@murelh.info)_
+* [Salem Design](http://slmdesign.fr/)
+* [Hiboutik dev team](https://www.hiboutik.com)
+
+Hiboutik would like to extend its appreciation to [Murel Ntyandi](http://www.murelh.info) which performed the initial development in 2017.
