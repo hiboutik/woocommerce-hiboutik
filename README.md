@@ -24,7 +24,7 @@ Then follow the guide :
 
 Many have contributed to this plugin effort, from direct contributions of code, to contributions of projects.
 
-Contributors
+Contributors :
 * [Murel Ntyandi](http://www.murelh.info), _(contact@murelh.info)_
 * [Salem Design](http://slmdesign.fr/)
 * [Hiboutik dev team](https://www.hiboutik.com)
