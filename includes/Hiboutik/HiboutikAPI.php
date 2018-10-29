@@ -7,7 +7,7 @@ namespace Hiboutik;
  *
  * @package Hiboutik\HiboutikAPI
  *
- * @version 2.2.0
+ * @version 2.3.1
  * @author  Hiboutik
  *
  * @license GPLv3
@@ -67,6 +67,7 @@ class HiboutikAPI implements HiboutikAPIInterface
 /**
  * Legacy function
  *
+ * @deprecated
  * @param string       $resource
  * @param array|object $data
  * @uses HiboutikAPI::_handleLegacyRequest
@@ -84,6 +85,7 @@ class HiboutikAPI implements HiboutikAPIInterface
 /**
  * Legacy function
  *
+ * @deprecated
  * @param string       $resource
  * @param array|object $data
  * @uses HiboutikAPI::_handleLegacyRequest
@@ -101,6 +103,7 @@ class HiboutikAPI implements HiboutikAPIInterface
 /**
  * Legacy function
  *
+ * @deprecated
  * @param string       $resource
  * @param array|object $data
  * @uses HiboutikAPI::_handleLegacyRequest
@@ -118,6 +121,7 @@ class HiboutikAPI implements HiboutikAPIInterface
 /**
  * Legacy function
  *
+ * @deprecated
  * @param string $resource
  * @uses HiboutikAPI::_handleLegacyRequest
  * @return array|null
@@ -143,7 +147,7 @@ class HiboutikAPI implements HiboutikAPIInterface
     $this->errorCode = null;
     $code = $this->hr->getCode();
     if ($code === 200 or $code === 201) {
-      return json_decode($result, true);
+      return json_decode($result);
     } else {
       $this->errorCode = $this->hr->getCode();
       return null;
@@ -285,7 +289,10 @@ class HiboutikAPI implements HiboutikAPIInterface
           'error' => 'unknown_error',
           'code' => 99,
           'error_description' => 'Unknown error',
-          'details' => []
+          'details' => [
+            'http_code' => $code,
+            'response' => $response
+          ]
         ];
       }
     }

@@ -4,7 +4,7 @@
  * Plugin Name: Hiboutik
  * Plugin URI: https://www.hiboutik.com
  * Description: Synchronize Hiboutik POS software and WooCommerce
- * Version: 1.0.0
+ * Version: 1.0.1
  * Author: Hiboutik & Murelh Ntyandi
  * License: GPLv3
  */
@@ -373,4 +373,4 @@ $order->add_order_note( $message );
 }
 add_action( 'woocommerce_order_action_custom_action_sync_hibou', 'sv_wc_process_order_meta_box_action' );
 
- 
+
