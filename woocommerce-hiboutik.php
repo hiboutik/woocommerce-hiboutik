@@ -89,7 +89,7 @@ if ($hiboutik_token == '') {
 }
 
 //identifiant unique de la vente (pour éviter les doublons)
-// Est ce que la vente a déjà été synchronisée ?
+// Est ce que la vente a déjà été synchronisée ? Recherche si il existe une vente avec la référence $prefixe_vente$order_id sur Hiboutik
 $sale_already_sync = $hiboutik->get("/sales/search/ext_ref/$prefixe_vente$order_id");
 
 if ($hiboutik->request_ok)
@@ -110,6 +110,7 @@ $client_hiboutik = $hiboutik->get('/customers/search/', [
 ]);
 
 if (empty($client_hiboutik)) {// Le client Hiboutik n'existe pas
+//création du client
 $hibou_create_customer = $hiboutik->post('/customers/', [
 'customers_first_name'   => $wc_billing_address['first_name'],
 'customers_last_name'    => $wc_billing_address['last_name'],
@@ -137,6 +138,7 @@ if ($vendor_id == "") $vendor_id = 1;
 $duty_free_sale = 1;
 if ($wc_order_data['total_tax'] > "0") $duty_free_sale = 0;
 
+//création de la vente sur Hiboutik
 $hibou_sale = $hiboutik->post('/sales/', [
 'store_id' 				=> $store_id,
 'customer_id'  			=> $hibou_customer,
@@ -159,7 +161,7 @@ $message_retour[] = "Sale created : id $hibou_sale_id";
 }
 
 
-
+//pour chaque produit dans la vente
 foreach ($wc_order_data['line_items'] as $item) {
 
 $my_product_id = $item['product_id'];
@@ -170,11 +172,13 @@ $my_product_price = ($item['total'] + $item['total_tax']) / $my_quantity;
 if ($prices_without_taxes == "1") $my_product_price = $item['total'] / $my_quantity;
 $commentaires = "";
 
+//récupération du code barre du produit vendu
 $wcProduct = new WC_Product($item['product_id']);
 $bcProduct = $wcProduct->get_sku();
 
 
 //2 cas : le produit est simple | le produit comporte des variations (tailles)
+//si le produit vendu est un produit avec une variation alors on récupère le code barre de la variation
 if ($my_variation_id <> "0")
 {
 $sku = get_post_meta( $item['variation_id'], '_sku', true );
@@ -189,8 +193,10 @@ if ($hiboutik_token == '') {
   $hiboutik->oauth($hiboutik_token);
 }
 
+//on interroge l'API Hiboutik pour savoir quel est le produit (id Hiboutik) qui correspond au code barre
 $product_hiboutik = $hiboutik->get("/products/search/barcode/$bcProduct/");
 
+//si on a trouvé un produit a partir du code barre alors on récupère product_id & product_size
 if (isset($product_hiboutik[0]))
 {
 $id_prod = $product_hiboutik[0]['product_id'];
@@ -199,6 +205,7 @@ $message_retour[] = "Product $my_product_id x$my_quantity ($my_variation_id) #$b
 }
 else
 {
+//si aucun produit a été trouvé à partir du code barre alors on ajoute le produit inconnu (product_id = 0)
 $id_prod = 0;
 $id_taille = 0;
 $commentaires = "Unknown product\nSKU : $bcProduct\nName : $my_name";
@@ -212,6 +219,7 @@ if ($hiboutik_token == '') {
   $hiboutik = new Hiboutik\HiboutikAPI($hiboutik_account);
   $hiboutik->oauth($hiboutik_token);
 }
+//ajout du produit sur la vente
 $hibou_add_product = $hiboutik->post('/sales/add_product/', [
 'sale_id' 				=> $hibou_sale_id,
 'product_id'  			=> $id_prod,
@@ -265,6 +273,7 @@ if ($hiboutik_token == '') {
   $hiboutik = new Hiboutik\HiboutikAPI($hiboutik_account);
   $hiboutik->oauth($hiboutik_token);
 }
+//ajout de la livraison
 $hibou_add_product = $hiboutik->post('/sales/add_product/', [
 'sale_id' 				=> $hibou_sale_id,
 'product_id'  			=> $shipping_product_id,
