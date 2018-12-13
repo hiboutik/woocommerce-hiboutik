@@ -80,13 +80,4 @@ interface HttpRequestInterface
  * @return object HttpRequest ($this)
  */
   public function setOAuthToken($token);
-
-
-/**
- * Get all or a header field
- *
- * @param string $field Optional
- * @return array|string|null
- */
-  public function getHeader($field = null);
 }
