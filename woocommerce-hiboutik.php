@@ -16,51 +16,72 @@ if (!defined('WPINC')) {
 
 define( 'PLUGIN_NAME_VERSION', '0.1.0' );
 
+defined('HIBOUTIK_LOG') || define('HIBOUTIK_LOG',false);
 
-function fromHiboutik($query)
+function fromHiboutik( $query )
 {
-  if ($query->request === 'hiboutik-woocommerce-sync') {
-    if (!isset($_POST['line_items'])) {
-      throw new \Exception('Pas des produits dans le POST d\'url de callback; synchronisation abandonee', 2);
-    }
-    foreach ($_POST['line_items'] as $item) {
-      $wc_prod_id = (int) wc_get_product_id_by_sku($item['product_barcode']);
-      if ($wc_prod_id == 0) {
-        throw new \Exception("Le produit {$$item['product_id']} n'a pas du code des barres sur WooCommerce; synchronisation abandonee", 1);
-      }
-      $wc_product = wc_get_product($wc_prod_id);
-      if ($wc_product == false) {
-        throw new \Exception("Le produit {$$item['product_id']} n'a pas pu etre recupere de WooCommerce; synchronisation abandonee", 3);
-      }
-      $wc_stock = $wc_product->get_stock_quantity();
-      wc_update_product_stock($wc_prod_id, $wc_stock - $item['quantity']);
-    }
-    exit();
-  }
+	if ( $query->request === 'hiboutik-woocommerce-sync' ) {
+		if (!isset($_POST['line_items'])) {
+			hiboutikLog('Pas des produits dans le POST d\'url de callback; synchronisation abandonée.');
+			exit();
+		}
+		foreach ($_POST['line_items'] as $item) {
+			$wc_prod_id = (int) wc_get_product_id_by_sku($item['product_barcode']);
+			if ($wc_prod_id == 0) {
+				hiboutikLog("Le produit {$item['product_id']} n'a pas du code des barres dans WooCommerce.");
+				continue;
+			}
+			$wc_product = wc_get_product($wc_prod_id);
+			if ($wc_product == false) {
+				hiboutikLog("Le produit {$item['product_id']} n'a pas pu etre recuperé de WooCommerce.");
+				continue;
+			}
+			$wc_stock = $wc_product->get_stock_quantity();
+			if ($wc_stock === null) {
+				hiboutikLog("La gestion de stock pour produit {$item['product_id']} est désactivée dans WooCommerce.");
+			}
+			wc_update_product_stock($wc_prod_id, $wc_stock - $item['quantity']);
+			hiboutikLog("Le stock du produit {$wc_prod_id} reduit de {$item['quantity']} avec succes.");
+		}
+		exit();
+	}
 
+	if ( $query->request === 'hiboutik-woocommerce-sync-stock' ) {
+		require('hiboutik_page_sync.php');
+		exit();
+	}
 
-if ($query->request === 'hiboutik-woocommerce-sync-stock') {
-require('hiboutik_page_sync.php');
-exit();
+	if ( $query->request === 'hiboutik-woocommerce-recup-vente' ) {
+		$order_id = $_GET['order_id'];
+		$msgs = fromWooCommerce( $order_id );
+		hiboutikLog( implode( PHP_EOL, $msgs ) );
+		exit();
+	}
+
 }
 
+function hiboutikLog( $msg = '' )
+{
+	if ( ! HIBOUTIK_LOG || ! $msg ) return;
 
-if ($query->request === 'hiboutik-woocommerce-recup-vente') {
-//$order_id = $_GET['order_id'];
-fromWooCommerce($order_id);
-exit();
+	if ( defined('HIBOUTIK_LOG_MAIL') && HIBOUTIK_LOG_MAIL ) {
+		$dest = is_email( HIBOUTIK_LOG_MAIL ) ? HIBOUTIK_LOG_MAIL : get_bloginfo('admin_email');
+		$type = 1;
+	} else {
+		$dest = trailingslashit( WP_CONTENT_DIR ) . 'hiboutik.log';
+		$type = 3;
+	}
+
+	error_log( PHP_EOL . '[' . date('d-M-Y H:i:s e') . '] ' . $msg, $type, $dest );
 }
-
-}
-
 
 function fromWooCommerce($order_id)
 {
 $message_retour = array();
 
 $wc_order = wc_get_order($order_id);
-if (!($wc_order instanceof WC_Order)) {
-throw new \Exception("Impossible de recuperer l'instance de la commande WooCommerce $order_id", 4);
+if ( ! ($wc_order instanceof WC_Order) || ! method_exists( $wc_order, 'get_data' ) ) {
+	return array("Impossible de recuperer l'instance de la commande WooCommerce $order_id");
 }
 $wc_order_data = $wc_order->get_data();
 $wc_billing_address = $wc_order_data['billing'];
