@@ -41,7 +41,7 @@ function fromHiboutik( $query )
 				hiboutikLog("La gestion de stock pour produit {$item['product_id']} est désactivée dans WooCommerce.");
 			}
 			wc_update_product_stock($wc_prod_id, $wc_stock - $item['quantity']);
-			hiboutikLog("Le stock du produit {$wc_prod_id} reduit de {$item['quantity']} avec succes.");
+			hiboutikLog("Le stock du produit {$wc_prod_id} reduit de {$item['quantity']} avec succès.");
 		}
 		exit();
 	}
