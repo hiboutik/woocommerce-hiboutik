@@ -16,7 +16,7 @@ if (!defined('WPINC')) {
 
 define( 'PLUGIN_NAME_VERSION', '0.1.0' );
 
-defined('HIBOUTIK_LOG') || define('HIBOUTIK_LOG',false);
+defined( 'HIBOUTIK_LOG' ) or define( 'HIBOUTIK_LOG', false );
 
 function fromHiboutik( $query )
 {
@@ -25,24 +25,17 @@ function fromHiboutik( $query )
 			hiboutikLog('Pas des produits dans le POST d\'url de callback; synchronisation abandonée.');
 			exit();
 		}
+		$message_retour = array();
 		foreach ($_POST['line_items'] as $item) {
 			$wc_prod_id = (int) wc_get_product_id_by_sku($item['product_barcode']);
 			if ($wc_prod_id == 0) {
-				hiboutikLog("Le produit {$item['product_id']} n'a pas du code des barres dans WooCommerce.");
+				$message_retour[] = "Le produit Hiboutik #{$item['product_id']} n'a pas de produit avec code-barres corresponant à {$item['product_barcode']} dans WooCommerce.";
 				continue;
 			}
-			$wc_product = wc_get_product($wc_prod_id);
-			if ($wc_product == false) {
-				hiboutikLog("Le produit {$item['product_id']} n'a pas pu etre recuperé de WooCommerce.");
-				continue;
-			}
-			$wc_stock = $wc_product->get_stock_quantity();
-			if ($wc_stock === null) {
-				hiboutikLog("La gestion de stock pour produit {$item['product_id']} est désactivée dans WooCommerce.");
-			}
-			wc_update_product_stock($wc_prod_id, $wc_stock - $item['quantity']);
-			hiboutikLog("Le stock du produit {$wc_prod_id} reduit de {$item['quantity']} avec succès.");
+			$wc_stock = wc_update_product_stock($wc_prod_id, $item['quantity'], 'decrease');
+			$message_retour[] = "Le stock du produit WooCommerce #{$wc_prod_id} mis à {$wc_stock} avec succès.";
 		}
+		hiboutikLog( $message_retour );
 		exit();
 	}
 
@@ -52,9 +45,12 @@ function fromHiboutik( $query )
 	}
 
 	if ( $query->request === 'hiboutik-woocommerce-recup-vente' ) {
-		$order_id = $_GET['order_id'];
-		$msgs = fromWooCommerce( $order_id );
-		hiboutikLog( implode( PHP_EOL, $msgs ) );
+		if ( !empty($_GET['order_id']) ) {
+			$message_retour = fromWooCommerce( $_GET['order_id'] );
+		} else {
+			$message_retour = 'Pas de commande dans le GET d\'url de callback';
+		}
+		hiboutikLog( $message_retour );
 		exit();
 	}
 
@@ -64,6 +60,8 @@ function hiboutikLog( $msg = '' )
 {
 	if ( ! HIBOUTIK_LOG || ! $msg ) return;
 
+	$log = is_array( $msg ) ? implode( PHP_EOL . "\t", $msg ) : $msg;
+
 	if ( defined('HIBOUTIK_LOG_MAIL') && HIBOUTIK_LOG_MAIL ) {
 		$dest = is_email( HIBOUTIK_LOG_MAIL ) ? HIBOUTIK_LOG_MAIL : get_bloginfo('admin_email');
 		$type = 1;
@@ -72,7 +70,7 @@ function hiboutikLog( $msg = '' )
 		$type = 3;
 	}
 
-	error_log( PHP_EOL . '[' . date('d-M-Y H:i:s e') . '] ' . $msg, $type, $dest );
+	error_log( PHP_EOL . '[' . date('d-M-Y H:i:s e') . '] ' . $log, $type, $dest );
 }
 
 function fromWooCommerce($order_id)
