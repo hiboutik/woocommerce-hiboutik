@@ -4,7 +4,7 @@
  * Plugin Name: Hiboutik
  * Plugin URI: https://www.hiboutik.com
  * Description: Synchronize Hiboutik POS software and WooCommerce
- * Version: 1.0.1
+ * Version: 1.1.0
  * Author: Hiboutik & Murelh Ntyandi
  * License: GPLv3
  */
@@ -14,43 +14,69 @@ if (!defined('WPINC')) {
 	die;
 }
 
-define( 'PLUGIN_NAME_VERSION', '0.1.0' );
+define( 'PLUGIN_NAME_VERSION', '0.2.0' );
+/** @const int 1 if logging is enabled, 0 otherwise */
+define('HIBOUTIK_LOG', get_option('hiboutik_logging', 1));
+/** @const string If not empty the log messages are sent to an email address.
+ *  If empty, log messages are written to file.
+ */
+define('HIBOUTIK_LOG_MAIL', get_option('hiboutik_email_log', ''));
+
+// Setup, check and cleanup the logs
+if (HIBOUTIK_LOG != 0 and HIBOUTIK_LOG_MAIL == '') {
+  checkLogs();
+}
 
 
 function fromHiboutik($query)
 {
+  require 'includes/HiboutikJsonMessage.php';
+  $json_msg = new Hiboutik\HiboutikJsonMessage();
+
   if ($query->request === 'hiboutik-woocommerce-sync') {
-    if (!isset($_POST['line_items'])) {
-      throw new \Exception('Pas des produits dans le POST d\'url de callback; synchronisation abandonee', 2);
+    if (empty($_POST) or !isset($_POST['sale_id'])) {
+      hiboutikLog("Warning: sync route has been accessed but no data was received.");
+      $json_msg->alert('warning', "Warning: sync route has been accessed but no data was received.")->show();
+      exit();
     }
-    foreach ($_POST['line_items'] as $item) {
-      $wc_prod_id = (int) wc_get_product_id_by_sku($item['product_barcode']);
-      if ($wc_prod_id == 0) {
-        throw new \Exception("Le produit {$$item['product_id']} n'a pas du code des barres sur WooCommerce; synchronisation abandonee", 1);
+    if (isset($_POST['line_items'])) {
+      foreach ($_POST['line_items'] as $item) {
+        $wc_prod_id = (int) wc_get_product_id_by_sku($item['product_barcode']);
+        if ($wc_prod_id == 0) {
+          hiboutikLog("Warning: Cannot find product in WooCommerce using barcode '{$item['product_model']}', id {$item['product_id']}. Skipping...");
+          $json_msg->alert('warning', "Cannot find product in WooCommerce using barcode: '{$item['product_model']}', id {$item['product_id']}. Skipping...");
+          continue;
+        }
+        $wc_product = wc_get_product($wc_prod_id);
+        if ($wc_product == false) {
+          hiboutikLog("Warning: Product '{$item['product_model']}', id {$item['product_id']} was not found in WooCommerce. Skipping...");
+          $json_msg->alert('warning', "Product '{$item['product_model']}', id {$item['product_id']} was not found in WooCommerce. Skipping...");
+          continue;
+        }
+        $wc_stock = $wc_product->get_stock_quantity();
+        wc_update_product_stock($wc_prod_id, $wc_stock - $item['quantity']);
       }
-      $wc_product = wc_get_product($wc_prod_id);
-      if ($wc_product == false) {
-        throw new \Exception("Le produit {$$item['product_id']} n'a pas pu etre recupere de WooCommerce; synchronisation abandonee", 3);
+      if ($json_msg->message === '') {
+        $json_msg->alert('success', 'Synchronisation avec WooCommerce effectuée');
       }
-      $wc_stock = $wc_product->get_stock_quantity();
-      wc_update_product_stock($wc_prod_id, $wc_stock - $item['quantity']);
+    } else {
+      hiboutikLog('Warning: No products received from the Hiboutik webhook. Unable to synchronize sale '.$_POST['sale_id'].'.');
+      $json_msg->alert('warning', 'Warning: No products received from the Hiboutik webhook. Unable to synchronize sale '.$_POST['sale_id'].'.');
     }
+    $json_msg->show();
     exit();
   }
 
+  if ($query->request === 'hiboutik-woocommerce-sync-stock') {
+    require('hiboutik_page_sync.php');
+    exit();
+  }
 
-if ($query->request === 'hiboutik-woocommerce-sync-stock') {
-require('hiboutik_page_sync.php');
-exit();
-}
-
-
-if ($query->request === 'hiboutik-woocommerce-recup-vente') {
-//$order_id = $_GET['order_id'];
-fromWooCommerce($order_id);
-exit();
-}
-
+  if ($query->request === 'hiboutik-woocommerce-recup-vente') {
+    //$order_id = $_GET['order_id'];
+    fromWooCommerce($order_id);
+    exit();
+  }
 }
 
 
@@ -333,7 +359,7 @@ function run_hiboutik()
     add_action('parse_request', 'fromHiboutik');
   }
 
-    add_action('woocommerce_order_status_processing', 'fromWooCommerce');
+  add_action('woocommerce_order_status_processing', 'fromWooCommerce');
   /*
   woocommerce_order_status_pending
   woocommerce_order_status_failed
@@ -383,3 +409,67 @@ $order->add_order_note( $message );
 add_action( 'woocommerce_order_action_custom_action_sync_hibou', 'sv_wc_process_order_meta_box_action' );
 
 
+
+
+/**
+ * Manage logs
+ *
+ * Creates log directory and files. Performs logrotate.
+ *
+ * @param void
+ * @throws \Exception If the directory cannot be created or it is not writable
+ * @return void
+ */
+function checkLogs()
+{
+  $dest_dir = __DIR__.'/log';
+  $dest = "$dest_dir/hiboutik.log";
+  if (!file_exists($dest_dir) and !mkdir($dest_dir)) {
+    throw new \Exception('Plugin WooCommerce-Hiboutik: Cannot create log directory -> '.$dest_dir.'. Check permissions or disable logging in Options to stop this message.', 4);
+  }
+  if (!file_exists($dest) and !touch($dest)) {
+    throw new \Exception('Plugin WooCommerce-Hiboutik: Cannot create log file -> '.$dest.'. Check permissions or disable logging in Options to stop this message.', 5);
+  }
+  // Rudimentary logrotate
+  $n_logs = 10;
+  if (filesize($dest) > 1e6) {
+    for ($i = $n_logs; $i !== 1; $i--) {
+      if (!file_exists("$dest.".($i - 1))) {
+        continue;
+      }
+      if (!rename("$dest.".($i - 1), "$dest.$i")) {
+        throw new \Exception('Plugin WooCommerce-Hiboutik: Cannot manipulate log files in '.$dest_dir.'. Check permissions or disable logging in Options to stop this message.', 6);
+      }
+    }
+    $old_log_file = "$dest_dir/hiboutik.log.1";
+    if (rename($dest, $old_log_file)) {
+      touch($dest);
+    } else {
+      throw new \Exception('Plugin WooCommerce-Hiboutik: Cannot manipulate log files in '.$dest_dir.'. Check permissions or disable logging in Options to stop this message.', 6);
+    }
+  }
+}
+
+
+/**
+ * Write or email logs
+ *
+ * @param $msg string Message to log
+ * @return void
+ */
+function hiboutikLog($msg = null)
+{
+  if (is_null($msg) or HIBOUTIK_LOG == 0) {
+    return;
+  }
+
+  if (HIBOUTIK_LOG_MAIL != '') {
+    $type = 1;
+    $dest = HIBOUTIK_LOG_MAIL;
+  } else {
+    $dest = __DIR__.'/log/hiboutik.log';
+    $type = 3;
+  }
+
+  error_log(PHP_EOL.'['.date('d-M-Y H:i:s e') . '] '.$msg, $type, $dest);
+}

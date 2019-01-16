@@ -7,7 +7,7 @@ namespace Hiboutik;
  *
  * @package Hiboutik\HiboutikAPI
  *
- * @version 2.4.0
+ * @version 2.5.0
  * @author  Hiboutik
  *
  * @license GPLv3
@@ -16,17 +16,17 @@ namespace Hiboutik;
  */
 class HiboutikAPI implements HiboutikAPIInterface
 {
-  /** @var object Curl connection */
-  protected $hr;
   /** @var string API location */
   protected $uri;
   /** @var string Last HTTP request type */
   protected $request_type = '';
   /** @var string Last HTTP request resource */
   protected $request_resource = '';
-  /** @var array Last HTTP request type */
-  protected $request_data = null;
 
+  /** @var object Curl connection */
+  public $hr;
+  /** @var array Last HTTP request type */
+  public $request_data = null;
   /** @var integer|null HTTP status code if different from 200 and 201 */
   public $errorCode = null;
   /** @var boolean True if HTTP status code is 200 or 201 */
@@ -193,10 +193,24 @@ class HiboutikAPI implements HiboutikAPIInterface
 /**
  * @param string            $resource API route
  * @param array|object|null $data
+ * @param array  $files Files to upload in the following form:
+ * [
+ *   'image' => [
+ *     [
+ *       'file' => '/path/to/file',
+ *       'type' => 'image/jpeg'
+ *     ],
+ *     [
+ *       'file' => '/path/to/second/file',
+ *       'type' => 'image/jpeg'
+ *     ]
+ *   ]
+ * ]
+ * The 'type' key is optional, defaults to 'application/octet-stream'.
  * @uses HiboutikAPI::_handleRequest
  * @return array|string
  */
-  public function post($resource = '', $data = null)
+  public function post($resource = '', $data = null, $files = null)
   {
     if (strpos($resource, '/') !== 0) {
       $resource = "/$resource";
@@ -204,7 +218,11 @@ class HiboutikAPI implements HiboutikAPIInterface
     $this->request_type = 'POST';
     $this->request_resource = $this->uri.$resource;
     $this->request_data = $data;
-    return $this->_handleRequest($this->hr->post($this->uri.$resource, $data));
+    if ($files === null) {
+      return $this->_handleRequest($this->hr->post($this->uri.$resource, $data));
+    } else {
+      return $this->_handleRequest($this->hr->postFile($this->uri.$resource, $data, $files));
+    }
   }
 
 
@@ -281,22 +299,31 @@ class HiboutikAPI implements HiboutikAPIInterface
   protected function _handleRequest($result)
   {
     $this->request_ok = false;
-    $code = $this->hr->getCode();
-    $response = json_decode($result, $this->return_array);
-    if ($code === 200 or $code === 201) {
-      $this->request_ok = true;
-    } else {
-      if (!isset($response['error_description'])) {
-        $response = [
-          'error' => 'unknown_error',
-          'code' => 99,
-          'error_description' => 'Unknown error',
-          'details' => [
-            'http_code' => $code,
-            'response' => $response
-          ]
-        ];
+    if (empty($this->hr->error)) {
+      $code = intval($this->hr->getCode());
+      $response = json_decode($result, $this->return_array);
+      if ($code < 400) {
+        $this->request_ok = true;
+      } else {
+        if (!isset($response['error_description'])) {
+          $response = [
+            'error' => 'unknown_error',
+            'code' => 99,
+            'error_description' => 'Unknown error',
+            'details' => [
+              'http_code' => $code,
+              'response' => $response
+            ]
+          ];
+        }
       }
+    } else {
+      $response = [
+        'error' => 'curl_error',
+        'code' => $this->hr->error['error']['code'],
+        'error_description' => $this->hr->error['error']['error_description'],
+        'details' => []
+      ];
     }
     return $response;
   }
