@@ -1,4 +1,6 @@
 <?php
+use Hiboutik\WooCommerce\WCUtil;
+
 
 add_action('admin_init', function() {
   add_settings_section('hiboutik_credentials', 'Credentials', null, 'hiboutik');
@@ -171,7 +173,8 @@ add_action('admin_init', function() {
 });
 
 
-
+// Security
+WCUtil::$webhook = (site_url()).'/'.WCUtil::ROUTE_SYNC_SALE.'/?'.(WCUtil::getSecurityToken());
 
 
 add_action('admin_menu', function() {
@@ -192,6 +195,9 @@ add_action('admin_menu', function() {
 
   <h2>Manually synchronize stock with Hiboutik</h2>
   <a class="button button-primary" href="/hiboutik-woocommerce-sync-stock/">Go!</a>
+
+  <h2>Hiboutik webhook</h2>
+  <span><?= WCUtil::$webhook?></span>
 
   <script>
     (function() {
