@@ -19,6 +19,35 @@ Then follow the guide :
 
 [EN] http://www.pos-software-free.com/sync-woocommerce-hiboutik/
 
+## Tips
+
+### How to sync all your warehouses
+
+In https://github.com/hiboutik/woocommerce-hiboutik/blob/master/hiboutik_page_sync.php, remplace :
+```php
+  $stock_available = $hiboutik->get("/stock_available/warehouse_id/{$config['HIBOUTIK_STORE_ID']}");
+```
+with this :
+```php
+  $stock_available = $hiboutik->get('/stock_available/all_wh/');
+```
+
+In https://github.com/hiboutik/woocommerce-hiboutik/blob/master/woocommerce-hiboutik.php, remplace :
+```php
+        foreach ($stocks_dispo as $stock) {
+          if ($stock['warehouse_id'] == $config['HIBOUTIK_STORE_ID']) {
+            $quantity = $stock['stock_available'];
+            break;
+          }
+        }
+```
+with this :
+```php
+              $quantity = 0;
+          foreach ($stocks_dispo as $stock) {
+              $quantity = $quantity + $stock['stock_available'];
+          }
+```
 
 ## Credits
 
