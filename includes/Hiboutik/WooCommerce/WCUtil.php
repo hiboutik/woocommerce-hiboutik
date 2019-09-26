@@ -33,7 +33,7 @@ class WCUtil
  * @param void
  * @return array
  */
-  public function getHiboutikConfiguration()
+  public static function getHiboutikConfiguration()
   {
     if (is_null(self::$config)) {
       return self::$config = [
@@ -178,7 +178,7 @@ class WCUtil
       if (rename($dest, $old_log_file)) {
         touch($dest);
       } else {
-        throw new \Exception('Plugin WooCommerce-Hiboutik: Cannot manipulate log files in '.$dest_dir.'. Check permissions or disable logging in Options to stop this message.', 6);
+        throw new \Exception('Plugin WooCommerce-Hiboutik: Cannot manipulate log files in '.$dest_dir.'. Check permissions or disable logging in Options to stop this message.', 7);
       }
     }
   }
