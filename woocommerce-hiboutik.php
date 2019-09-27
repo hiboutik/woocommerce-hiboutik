@@ -38,6 +38,16 @@ if (HIBOUTIK_LOG != 0 and HIBOUTIK_LOG_MAIL == '') {
 }
 
 
+/**
+ * Sync data from Hiboutik to WooCommerce
+ *
+ * Hiboutik tries to sync with WooCommerce when a sale is closed.
+ * This function responds with a JSON encoded message which contains an HTML
+ * snippet (uses Bootstrap). The snippet is displayed on users's Hiboutik
+ * interface.
+ *
+ * @param string $query Request uri
+ */
 function fromHiboutik($query)
 {
   $json_msg = new JsonMessage();
@@ -69,6 +79,7 @@ function fromHiboutik($query)
     }
 
     if (isset($_POST['line_items'])) {
+      // Get a Hiboutik API instance
       $hiboutik = WCUtil::apiConnect($config);
 
       foreach ($_POST['line_items'] as $item) {
@@ -80,7 +91,7 @@ function fromHiboutik($query)
           continue;
         }
         foreach ($stocks_dispo as $stock) {
-          if ($stock['warehouse_id'] == $config['HIBOUTIK_STORE_ID']) {
+          if ($stock['warehouse_id'] == $config['HIBOUTIK_STORE_ID']) {// found the store
             $quantity = $stock['stock_available'];
             break;
           }
@@ -123,6 +134,13 @@ function fromHiboutik($query)
 }
 
 
+/**
+ * Sync data from WooCommerce to Hiboutik
+ *
+ * Synchronisation is made through the Hiboutik API.
+ *
+ * @param string $query Request uri
+ */
 function fromWooCommerce($order_id)
 {
   $message_retour = array();
@@ -142,23 +160,26 @@ function fromWooCommerce($order_id)
 
   $hiboutik = WCUtil::apiConnect($config);
 
-  //identifiant unique de la vente (pour éviter les doublons)
-  // Est ce que la vente a déjà été synchronisée ? Recherche si il existe une vente avec la référence $prefixe_vente$order_id sur Hiboutik
+/**
+ * Unique sale id (avoids double entries)
+ * Has the sale already been synchronized? Search if there is a sale with the
+ * same reference $prefixe_vente$order_id in Hiboutik
+ */
   $sale_already_sync = $hiboutik->get("/sales/search/ext_ref/{$config['HIBOUTIK_SALE_ID_PREFIX']}$order_id");
 
   if ($hiboutik->request_ok) {
     if (!empty($sale_already_sync)) {
       $message_retour[] = "Sale already synced -> Aborting";
     } else {
-      // Le client existe?
+      // The client exists?
       $hibou_customer = 0;
       if ($wc_billing_address['email'] <> "") {
         $client_hiboutik = $hiboutik->get('/customers/search/', [
-        'email' => $wc_billing_address['email']
+          'email' => $wc_billing_address['email']
         ]);
 
-        if (empty($client_hiboutik)) {// Le client Hiboutik n'existe pas
-          //création du client
+        if (empty($client_hiboutik)) {// The Hiboutik client does not exist
+          // The client is created
           $hibou_create_customer = $hiboutik->post('/customers/', [
           'customers_first_name'   => $wc_billing_address['first_name'],
           'customers_last_name'    => $wc_billing_address['last_name'],
@@ -182,7 +203,7 @@ function fromWooCommerce($order_id)
       $duty_free_sale = 1;
       if ($wc_order_data['total_tax'] > "0") $duty_free_sale = 0;
 
-      //création de la vente sur Hiboutik
+      // Create sale in Hiboutik
       $hibou_sale = $hiboutik->post('/sales/', [
       'store_id'             => $config['HIBOUTIK_STORE_ID'],
       'customer_id'          => $hibou_customer,
@@ -192,7 +213,6 @@ function fromWooCommerce($order_id)
       'vendor_id'            => $config['HIBOUTIK_VENDOR_ID'] ? $config['HIBOUTIK_VENDOR_ID'] : 1
       ]);
 
-      //print_r($wc_order);
 
       if (isset($hibou_sale['error'])) {
         $message_retour[] = "Error : Unable to create sale on Hiboutik";
@@ -202,7 +222,7 @@ function fromWooCommerce($order_id)
       }
 
 
-      //pour chaque produit dans la vente
+      // For each item in the sale
       foreach ($wc_order_data['line_items'] as $item) {
         $my_product_id = $item['product_id'];
         $my_variation_id = $item['variation_id'];
@@ -212,34 +232,36 @@ function fromWooCommerce($order_id)
         if ($prices_without_taxes == "1") $my_product_price = $item['total'] / $my_quantity;
         $commentaires = "";
 
-        //récupération du code barre du produit vendu
+        // Get barcode for the item being sold
         $wcProduct = new WC_Product($item['product_id']);
         $bcProduct = $wcProduct->get_sku();
 
-        //2 cas : le produit est simple | le produit comporte des variations (tailles)
-        //si le produit vendu est un produit avec une variation alors on récupère le code barre de la variation
+/**
+ * 2 cases: simple item | the item has variations (sizes).
+ * If the item has a variation, we get its barcode.
+ */
         if ($my_variation_id <> "0") {
           $sku = get_post_meta( $item['variation_id'], '_sku', true );
           if ($sku <> "") $bcProduct = $sku;
         }
 
-        //on interroge l'API Hiboutik pour savoir quel est le produit (id Hiboutik) qui correspond au code barre
+        // We ask Hiboutik's API which is the product (Hiboutik id) associated with the barcode
         $product_hiboutik = $hiboutik->get("/products/search/barcode/$bcProduct/");
 
-        //si on a trouvé un produit a partir du code barre alors on récupère product_id & product_size
+        // If a product was found with the barcode we get its id & size
         if (isset($product_hiboutik[0])) {
           $id_prod = $product_hiboutik[0]['product_id'];
           $id_taille = $product_hiboutik[0]['product_size'];
           $message_retour[] = "Product $my_product_id x$my_quantity ($my_variation_id) #$bcProduct added";
         } else {
-          //si aucun produit a été trouvé à partir du code barre alors on ajoute le produit inconnu (product_id = 0)
+          // If no product has been found with this barcode, we add an unknown item (product_id = 0)
           $id_prod = 0;
           $id_taille = 0;
           $commentaires = "Unknown product\nSKU : $bcProduct\nName : $my_name";
           $message_retour[] = "Product $my_product_id x$my_quantity ($my_variation_id) #$bcProduct unknown";
         }
 
-        //ajout du produit sur la vente
+        // Add item to the sale
         $hibou_add_product = $hiboutik->post('/sales/add_product/', [
         'sale_id'          => $hibou_sale_id,
         'product_id'       => $id_prod,
@@ -251,7 +273,7 @@ function fromWooCommerce($order_id)
         ]);
 
 
-        //si il y a une quelconque erreur alors on ajoute a nouveau le produit mais sans sortie stock (cas du produit géré en stock mais indisponible)
+        // If there's any error we add the item again without removing it from stock (stock managed product, but unavailable)
         if (isset($hibou_add_product['error'])) {
           $commentaires = "Results: " . print_r( $hibou_add_product, true );
           if ($hibou_add_product['details']['product_id'] == "This function does not handle packages") {
@@ -272,7 +294,7 @@ function fromWooCommerce($order_id)
         }
       }
 
-      //gestion de la livraison
+      // Shipping management
       foreach ($wc_order_data['shipping_lines'] as $item) {
         $name_livraison = $item['name'];
         $method_id_livraison = $item['method_id'];
@@ -283,7 +305,7 @@ function fromWooCommerce($order_id)
 
         $message_retour[] = "Delivery $total_livraison added";
 
-        //ajout de la livraison
+        // Add shipping
         $hibou_add_product = $hiboutik->post('/sales/add_product/', [
         'sale_id'          => $hibou_sale_id,
         'product_id'       => $config['HIBOUTIK_SHIPPING_PRODUCT_ID'],
@@ -295,13 +317,13 @@ function fromWooCommerce($order_id)
         ]);
       }
 
-      //commentaires de la vente
+      // Sale comments
       $hibou_add_product = $hiboutik->post('/sales/comments/', [
       'sale_id'         => $hibou_sale_id,
       'comments'         => "order_id : $wc_order_id\nComments : $customer_note"
       ]);
 
-      //identifiant unique de la vente
+      // Unique sale id
       $hibou_update_sale_ext_ref = $hiboutik->put("/sale/$hibou_sale_id", [
       'sale_id' => $hibou_sale_id,
       'sale_attribute' => "ext_ref",
@@ -319,7 +341,7 @@ function fromWooCommerce($order_id)
 
 
 
-// Pour eviter le conflit potentiel des noms des variables
+// Run in a function to avoid name conflicts
 function run_hiboutik()
 {
   if (is_admin()) {// admin
@@ -345,32 +367,28 @@ run_hiboutik();
 
 
 add_action('woocommerce_order_actions', 'custom_wc_order_action', 10, 1 );
-function custom_wc_order_action( $actions ) {
-
-if ( is_array( $actions ) ) {
-$actions['custom_action_sync_hibou'] = __( 'Synchronize with Hiboutik' );
-}
-
-return $actions;
-
-}
-
-function sv_wc_process_order_meta_box_action( $order ) {
-$message = sprintf( __( 'Sync by %s with Hiboutik', 'my-textdomain' ), wp_get_current_user()->display_name );
-$order->add_order_note( $message );
-
-$wc_order_data = $order->get_data();
-$order_id = $wc_order_data['id'];
-$message_retour = fromWooCommerce($order_id);
-
-foreach ($message_retour as $ligne_retour)
+function custom_wc_order_action( $actions )
 {
-$message = sprintf( __( "$ligne_retour", 'my-textdomain' ) );
-$order->add_order_note( $message );
+  if ( is_array( $actions ) ) {
+    $actions['custom_action_sync_hibou'] = __( 'Synchronize with Hiboutik' );
+  }
+
+  return $actions;
 }
+
+function sv_wc_process_order_meta_box_action( $order )
+{
+  $message = sprintf( __( 'Sync by %s with Hiboutik', 'my-textdomain' ), wp_get_current_user()->display_name );
+  $order->add_order_note( $message );
+
+  $wc_order_data = $order->get_data();
+  $order_id = $wc_order_data['id'];
+  $message_retour = fromWooCommerce($order_id);
+
+  foreach ($message_retour as $ligne_retour) {
+    $message = sprintf( __( "$ligne_retour", 'my-textdomain' ) );
+    $order->add_order_note( $message );
+  }
 }
 
 add_action( 'woocommerce_order_action_custom_action_sync_hibou', 'sv_wc_process_order_meta_box_action' );
-
-
-

@@ -224,6 +224,6 @@ add_action('admin_menu', function() {
     })();
   </script>
   <?php
-  }, 'data:image/svg+xml;base64,'.base64_encode(file_get_contents(__DIR__.'/hibou-plain-white.svg')), 58);
+  }, 'data:image/svg+xml;base64,'.base64_encode(file_get_contents(__DIR__.'/hibou-plain-white.svg'))/*Hiboutik logo*/, 58);
 });
 
