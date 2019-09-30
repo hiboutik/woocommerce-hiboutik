@@ -3,7 +3,7 @@
  * Plugin Name: Hiboutik
  * Plugin URI: https://www.hiboutik.com
  * Description: Synchronize Hiboutik POS software and WooCommerce
- * Version: 1.2.0
+ * Version: 1.2.1
  * Author: Hiboutik & Murelh Ntyandi
  * License: GPLv3
  */
@@ -20,7 +20,7 @@ if (!defined('WPINC')) {
   die;
 }
 
-define('PLUGIN_NAME_VERSION', '1.2.0');
+define('PLUGIN_NAME_VERSION', '1.2.1');
 
 /** @const int 1 if logging is enabled, 0 otherwise */
 define('HIBOUTIK_LOG', get_option('hiboutik_logging', 1));
