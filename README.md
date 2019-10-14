@@ -49,6 +49,24 @@ with this :
           }
 ```
 
+### How to close sale after sync
+
+In https://github.com/hiboutik/woocommerce-hiboutik/blob/master/woocommerce-hiboutik.php, remplace :
+```php
+      // Unique sale id
+```
+with this :
+```php
+
+      //Close sale
+      $hibou_close_sale = $hiboutik->post('/sales/close/', [
+      'sale_id'         => $hibou_sale_id
+      ]);
+
+      // Unique sale id
+```
+
+
 ## Credits
 
 Many have contributed to this plugin effort, from direct contributions of code, to contributions of projects.
