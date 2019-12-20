@@ -67,6 +67,25 @@ with this :
 ```
 
 
+### How to set the payment method
+
+In https://github.com/hiboutik/woocommerce-hiboutik/blob/master/woocommerce-hiboutik.php, remplace :
+```php
+      // Unique sale id
+```
+with this :
+```php
+
+      //Set payment method
+      $hibou_set_payment = $hiboutik->put("/sales/$hibou_sale_id/", [
+      'sale_attribute'  => 'payment',
+      'new_value'       => 'XXX'
+      ]);
+
+      // Unique sale id
+```
+
+
 ## Credits
 
 Many have contributed to this plugin effort, from direct contributions of code, to contributions of projects.
