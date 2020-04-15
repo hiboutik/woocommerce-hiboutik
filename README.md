@@ -77,7 +77,7 @@ with this :
 ```php
 
       //Set payment method
-      $hibou_set_payment = $hiboutik->put("/sales/$hibou_sale_id/", [
+      $hibou_set_payment = $hiboutik->put("/sale/$hibou_sale_id/", [
       'sale_attribute'  => 'payment',
       'new_value'       => 'XXX'
       ]);
